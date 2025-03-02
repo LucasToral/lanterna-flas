@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lanterna Minimalista</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .flash-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px auto;
+        }
+        
+        .flash-button:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .flash-on {
+            background-color: #f1c40f;
+        }
+        
+        .flash-icon {
+            width: 40px;
+            height: 40px;
+            stroke: white;
+            stroke-width: 2;
+            fill: none;
+            transition: all 0.3s ease;
+        }
+        
+        .status-text {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .flash-effect {
+            background-color: #fffdf0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lanterna</h1>
+        <button class="flash-button" id="flashButton">
+            <svg class="flash-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 6h-8l-1.5 9h5.5l-1 9 8-14h-5l2-4z"></path>
+            </svg>
+        </button>
+        <div class="status-text" id="statusText">Lanterna desligada</div>
+        <div style="margin-top: 20px; font-size: 14px; color: #666; text-align: left;">
+            <p><strong>Importante:</strong></p>
+            <ul style="padding-left: 20px; margin-top: 10px;">
+                <li>Esta aplicação precisa ser executada em HTTPS</li>
+                <li>Funciona melhor no Chrome/Safari para Android/iOS</li>
+                <li>Você precisa permitir acesso à câmera</li>
+                <li>Alguns dispositivos não permitem controle do flash</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const flashButton = document.getElementById('flashButton');
+            const statusText = document.getElementById('statusText');
+            const body = document.body;
+            let flashOn = false;
+
+            // Verifica se a API está disponível no navegador
+            const hasFlashSupport = 'mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices;
+            
+            flashButton.addEventListener('click', function() {
+                flashOn = !flashOn;
+                
+                if (flashOn) {
+                    // Liga a lanterna
+                    flashButton.classList.add('flash-on');
+                    statusText.textContent = 'Lanterna ligada';
+                    body.classList.add('flash-effect');
+                    
+                    if (hasFlashSupport) {
+                        turnOnFlash().catch(error => {
+                            console.error('Erro detalhado:', error);
+                            statusText.textContent = 'Acesso negado: ' + getErrorMessage(error);
+                        });
+                    }
+                } else {
+                    // Desliga a lanterna
+                    flashButton.classList.remove('flash-on');
+                    statusText.textContent = 'Lanterna desligada';
+                    body.classList.remove('flash-effect');
+                    
+                    if (hasFlashSupport && stream) {
+                        turnOffFlash();
+                    }
+                }
+            });
+
+            let stream = null;
+
+            // Função para obter mensagem de erro amigável
+            function getErrorMessage(error) {
+                if (error.name === 'SecurityError') {
+                    return 'Este aplicativo precisa ser executado em HTTPS ou localhost';
+                } else if (error.name === 'NotAllowedError') {
+                    return 'Permissão para câmera negada';
+                } else if (error.name === 'NotFoundError') {
+                    return 'Este dispositivo não tem flash';
+                } else {
+                    return error.message || 'Erro desconhecido';
+                }
+            }
+            
+            // Função para ligar o flash
+            async function turnOnFlash() {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'environment',
+                        advanced: [{ torch: true }]
+                    }
+                });
+                
+                // Em alguns dispositivos, pode ser necessário:
+                const track = stream.getVideoTracks()[0];
+                if (track && track.getCapabilities() && track.getCapabilities().torch) {
+                    await track.applyConstraints({
+                        advanced: [{ torch: true }]
+                    });
+                }
+                
+                // Esconde o vídeo mas mantém o stream ativo para o flash
+                const videoElement = document.createElement('video');
+                videoElement.style.position = 'absolute';
+                videoElement.style.width = '1px';
+                videoElement.style.height = '1px';
+                videoElement.style.opacity = '0.01';
+                document.body.appendChild(videoElement);
+                videoElement.srcObject = stream;
+                videoElement.play();
+            }
+
+            // Função para desligar o flash
+            function turnOffFlash() {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
